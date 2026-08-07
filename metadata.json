@@ -1,0 +1,6 @@
+{
+  "name": "TrustBite AI",
+  "description": "Hackathon-winning AI-Powered Food Delivery Platform featuring automated Trust-Based Refund Verification, Flash Waste Reduction Marketplace, and Driver Onboarding Agents.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
