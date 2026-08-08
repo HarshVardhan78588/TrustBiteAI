@@ -26,4 +26,4 @@ const RestaurantSchema = new Schema<IRestaurant>({
   menu: Schema.Types.Mixed
 });
 
-export const RestaurantModel = mongoose.models.Restaurant || mongoose.model<IRestaurant>('Restaurant', RestaurantSchema);
+export const RestaurantModel = mongoose.models.Restaurant || mongoose.model<IRestaurant>('Restaurant', RestaurantSchema, 'restaurants');

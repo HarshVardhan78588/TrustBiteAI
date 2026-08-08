@@ -49,4 +49,4 @@ const OrderSchema = new Schema<IOrder>({
   isFlashDeal: { type: Boolean, default: false }
 });
 
-export const OrderModel = mongoose.models.Order || mongoose.model<IOrder>('Order', OrderSchema);
+export const OrderModel = mongoose.models.Order || mongoose.model<IOrder>('Order', OrderSchema, 'orders');

@@ -36,4 +36,4 @@ const EmployeeSchema = new Schema<IEmployee>({
   createdAt: { type: Date, default: Date.now }
 });
 
-export const EmployeeModel = mongoose.models.Employee || mongoose.model<IEmployee>('Employee', EmployeeSchema);
+export const EmployeeModel = mongoose.models.Employee || mongoose.model<IEmployee>('Employee', EmployeeSchema, 'employees');

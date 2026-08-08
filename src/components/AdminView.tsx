@@ -3,7 +3,7 @@ import { AdminStats, RefundRequest, DriverApplication, User, NotificationItem, E
 import { ShieldAlert, TrendingUp, DollarSign, Sparkles, CheckCircle2, XCircle, Search, Bike, UserCheck, ShieldCheck, ArrowUpRight, BarChart3, AlertTriangle, Bell, UserX, Flag, Radio } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { EmployeeTrustView } from './EmployeeTrustView';
-import { toggleUserFlag, toggleRefundPrivileges } from '../services/apiService';
+import { toggleUserFlag, toggleRefundPrivileges, performSupportAction } from '../services/apiService';
 
 interface AdminViewProps {
   stats: AdminStats | null;
@@ -56,22 +56,39 @@ export const AdminView: React.FC<AdminViewProps> = ({
     { name: 'Low Trust (<50)', value: users.filter(u => u.trustScore < 50).length || 1, color: '#f43f5e' }
   ];
 
-  const handleToggleFlag = async (userId: string, currentFlag: 'GREEN' | 'YELLOW' | 'RED') => {
-    const nextFlag = currentFlag === 'RED' ? 'GREEN' : 'RED';
+  const handleRestoreTrust = async (userId: string) => {
     try {
-      await toggleUserFlag(userId, nextFlag);
+      await performSupportAction(userId, 'restore_trust');
+      onRefreshData();
+    } catch (err) {
+      console.error('Failed to restore trust', err);
+    }
+  };
+
+  const handleToggleFlag = async (userId: string, isFlaggedOrRed: boolean) => {
+    try {
+      await performSupportAction(userId, isFlaggedOrRed ? 'remove_red_flag' : 'mark_red_flag');
       onRefreshData();
     } catch (err) {
       console.error('Failed to update flag', err);
     }
   };
 
-  const handleToggleSuspend = async (userId: string, currentSuspended: boolean) => {
+  const handleToggleSuspend = async (userId: string, isSuspended: boolean) => {
     try {
-      await toggleRefundPrivileges(userId, !currentSuspended);
+      await performSupportAction(userId, isSuspended ? 'restore_refunds' : 'suspend_refunds');
       onRefreshData();
     } catch (err) {
       console.error('Failed to update refund privileges', err);
+    }
+  };
+
+  const handleWarnUser = async (userId: string) => {
+    try {
+      await performSupportAction(userId, 'warn_user');
+      onRefreshData();
+    } catch (err) {
+      console.error('Failed to warn user', err);
     }
   };
 
@@ -332,30 +349,37 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                   <div className="flex flex-wrap items-center gap-2 shrink-0 self-end lg:self-center">
                     <button
-                      onClick={() => onUpdateTrustScore(u.id, 15, 'Support restored trust score')}
+                      onClick={() => handleRestoreTrust(u.id)}
                       className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-bold text-xs transition-all flex items-center gap-1"
                     >
-                      <ShieldCheck className="w-3.5 h-3.5" /> Restore Trust (+15)
+                      <ShieldCheck className="w-3.5 h-3.5" /> Restore Trust
                     </button>
 
                     <button
-                      onClick={() => handleToggleFlag(u.id, u.flagStatus || 'GREEN')}
+                      onClick={() => handleToggleFlag(u.id, !!(u.isFlagged || u.flagStatus === 'RED'))}
                       className={`px-3 py-1.5 rounded-lg font-bold text-xs border transition-all flex items-center gap-1 ${
-                        u.flagStatus === 'RED'
+                        u.isFlagged || u.flagStatus === 'RED'
                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
                           : 'bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20'
                       }`}
                     >
                       <Flag className="w-3.5 h-3.5" />
-                      {u.flagStatus === 'RED' ? 'Remove Red Flag' : 'Mark RED FLAG'}
+                      {u.isFlagged || u.flagStatus === 'RED' ? 'Remove Red Flag' : 'Mark Red Flag'}
                     </button>
 
                     <button
-                      onClick={() => handleToggleSuspend(u.id, !!(u as any).refundPrivilegesSuspended)}
+                      onClick={() => handleToggleSuspend(u.id, !!((u as any).refundPrivilegesSuspended || (u as any).refundSuspended))}
                       className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 font-bold text-xs transition-all flex items-center gap-1"
                     >
                       <UserX className="w-3.5 h-3.5" />
-                      {(u as any).refundPrivilegesSuspended ? 'Restore Refunds' : 'Suspend Refunds'}
+                      {(u as any).refundPrivilegesSuspended || (u as any).refundSuspended ? 'Restore Refunds' : 'Suspend Refunds'}
+                    </button>
+
+                    <button
+                      onClick={() => handleWarnUser(u.id)}
+                      className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 font-bold text-xs transition-all flex items-center gap-1"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" /> Warn User
                     </button>
                   </div>
                 </div>

@@ -13,9 +13,10 @@ import { NotificationModel } from './server/models/Notification';
 import { EmployeeModel } from './server/models/Employee';
 import { FlashDealModel } from './server/models/FlashDeal';
 import { RestaurantModel } from './server/models/Restaurant';
-import { MOCK_USERS, MOCK_RESTAURANTS, MOCK_ORDERS, MOCK_REFUNDS, MOCK_FLASH_DEALS, MOCK_DRIVERS } from './src/mockData';
-import { Order, RefundRequest, FlashDeal, DriverApplication, AdminStats, OrderStatus, RefundStatus, NotificationItem, Employee, TrustScoreLog } from './src/types';
-import { runRefundAIAgents, runDriverVerificationAgent, calculateUpdatedTrustScore } from './server/aiAgents';
+import { DispatchPhotoModel } from './server/models/DispatchPhoto';
+import { MOCK_RESTAURANTS, MOCK_ORDERS, MOCK_REFUNDS, MOCK_FLASH_DEALS, MOCK_DRIVERS } from './src/mockData';
+import { RefundStatus, AdminStats } from './src/types';
+import { runRefundAIAgents, calculateUpdatedTrustScore } from './server/aiAgents';
 
 async function startServer() {
   const app = express();
@@ -28,92 +29,13 @@ async function startServer() {
 
   app.use(express.json({ limit: '10mb' }));
 
-  // Connect to DB (MongoDB Atlas or Memory Store fallback)
+  // Connect to MongoDB Database ('trustbite')
   await connectToDatabase();
 
-  // In-memory fallback arrays if MongoDB is offline
-  let users = [...MOCK_USERS];
-  let restaurants = [...MOCK_RESTAURANTS];
-  let orders: Order[] = [...MOCK_ORDERS];
-  let refunds: RefundRequest[] = [...MOCK_REFUNDS];
-  let flashDeals: FlashDeal[] = [...MOCK_FLASH_DEALS];
-  let drivers: DriverApplication[] = [...MOCK_DRIVERS];
-  let notifications: NotificationItem[] = [
-    {
-      id: 'notif_1',
-      type: 'RED_FLAG',
-      title: 'Red Flag: High Fraud Risk Detected',
-      message: 'User Customer Alex (Alex Vance) attempted refund claim with 15% image similarity match.',
-      targetId: 'user_1',
-      severity: 'critical',
-      isRead: false,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'notif_2',
-      type: 'EMPLOYEE_RISK',
-      title: 'Delivery Partner Alert',
-      message: 'Driver Marcus Vance received 3 consecutive customer complaint ratings.',
-      targetId: 'emp_1',
-      severity: 'high',
-      isRead: false,
-      createdAt: new Date().toISOString()
-    }
-  ];
+  const defaultPasswordHash = hashPassword('password123');
 
-  let trustLogs: TrustScoreLog[] = [
-    {
-      id: 'log_1',
-      userId: 'user_1',
-      userName: 'Customer Alex',
-      previousScore: 95,
-      newScore: 85,
-      delta: -10,
-      reason: 'Image evidence mismatch detected by Gemini Fraud Engine',
-      event: 'REFUND_DISCREPANCY',
-      timestamp: new Date().toISOString()
-    }
-  ];
-
-  let employees: Employee[] = [
-    {
-      id: 'emp_1',
-      name: 'Marcus Vance',
-      email: 'marcus.v@trustbite.ai',
-      phone: '+1 (555) 234-5678',
-      role: 'delivery_partner',
-      vehicleType: 'E-Bike Express',
-      vehiclePlate: 'EV-9910',
-      trustScore: 68,
-      totalDeliveries: 184,
-      rating: 3.9,
-      negativeRatingsCount: 4,
-      status: 'warned',
-      flagStatus: 'YELLOW',
-      photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'emp_2',
-      name: 'Sarah Connor',
-      email: 'sarah.c@trustbite.ai',
-      phone: '+1 (555) 876-5432',
-      role: 'delivery_partner',
-      vehicleType: 'EV Scooter',
-      vehiclePlate: 'EV-2041',
-      trustScore: 98,
-      totalDeliveries: 312,
-      rating: 4.95,
-      negativeRatingsCount: 0,
-      status: 'active',
-      flagStatus: 'GREEN',
-      photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-      createdAt: new Date().toISOString()
-    }
-  ];
-
-  // Seed required 4 accounts in MongoDB & in-memory users array
-  const defaultAccounts = [
+  // Seed Required Accounts & Collections in MongoDB
+  const seedAccounts = [
     {
       id: 'user_support_1',
       name: 'TrustBite Support Team',
@@ -123,26 +45,30 @@ async function startServer() {
       flagStatus: 'GREEN' as const,
       isFlagged: false,
       warningCount: 0,
-      lastActivity: new Date().toISOString(),
-      profilePicture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      refundPrivilegesSuspended: false,
+      refundSuspended: false,
       totalOrders: 0,
       approvedRefunds: 0,
-      rejectedRefunds: 0
+      rejectedRefunds: 0,
+      lastActivity: new Date().toISOString(),
+      profilePicture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
     },
     {
       id: 'user_cust_1',
       name: 'User 1 (Alex)',
       email: 'user1@test.com',
       role: 'customer' as const,
-      trustScore: 92,
+      trustScore: 100,
       flagStatus: 'GREEN' as const,
       isFlagged: false,
       warningCount: 0,
-      lastActivity: new Date().toISOString(),
-      profilePicture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      refundPrivilegesSuspended: false,
+      refundSuspended: false,
       totalOrders: 12,
       approvedRefunds: 1,
-      rejectedRefunds: 0
+      rejectedRefunds: 0,
+      lastActivity: new Date().toISOString(),
+      profilePicture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
     },
     {
       id: 'user_cust_2',
@@ -153,11 +79,13 @@ async function startServer() {
       flagStatus: 'YELLOW' as const,
       isFlagged: false,
       warningCount: 1,
-      lastActivity: new Date().toISOString(),
-      profilePicture: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+      refundPrivilegesSuspended: false,
+      refundSuspended: false,
       totalOrders: 8,
       approvedRefunds: 3,
-      rejectedRefunds: 1
+      rejectedRefunds: 1,
+      lastActivity: new Date().toISOString(),
+      profilePicture: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'
     },
     {
       id: 'user_cust_3',
@@ -168,374 +96,610 @@ async function startServer() {
       flagStatus: 'RED' as const,
       isFlagged: true,
       warningCount: 4,
-      lastActivity: new Date().toISOString(),
-      profilePicture: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+      refundPrivilegesSuspended: true,
+      refundSuspended: true,
       totalOrders: 15,
       approvedRefunds: 2,
-      rejectedRefunds: 7
+      rejectedRefunds: 7,
+      lastActivity: new Date().toISOString(),
+      profilePicture: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'
     }
   ];
 
-  const defaultPasswordHash = hashPassword('password123');
-
-  for (const acc of defaultAccounts) {
-    const existingIndex = users.findIndex(u => u.email.toLowerCase() === acc.email.toLowerCase());
-    if (existingIndex === -1) {
-      users.push({
-        ...acc,
-        passwordHash: defaultPasswordHash,
-        createdAt: new Date().toISOString()
-      } as any);
-    } else {
-      // Refresh memory seed user values
-      users[existingIndex] = {
-        ...users[existingIndex],
-        ...acc,
-        passwordHash: (users[existingIndex] as any).passwordHash || defaultPasswordHash
-      } as any;
-    }
-
-    // If MongoDB connected, persist seed account
-    if (isDbConnected()) {
-      try {
-        const dbUser = await (UserModel as any).findOne({ email: acc.email });
-        if (!dbUser) {
-          await UserModel.create({
-            id: acc.id,
-            name: acc.name,
-            email: acc.email,
-            passwordHash: defaultPasswordHash,
-            role: acc.role,
-            trustScore: acc.trustScore,
-            flagStatus: acc.flagStatus,
-            isFlagged: acc.isFlagged,
-            warningCount: acc.warningCount,
-            lastActivity: acc.lastActivity,
-            profilePicture: acc.profilePicture,
-            totalOrders: acc.totalOrders,
-            approvedRefunds: acc.approvedRefunds,
-            rejectedRefunds: acc.rejectedRefunds
-          });
-        } else {
-          // Sync existing db user into memory so DB is source of truth
-          const idx = users.findIndex(u => u.email.toLowerCase() === acc.email.toLowerCase());
-          if (idx !== -1) {
-            users[idx] = {
-              ...users[idx],
-              trustScore: dbUser.trustScore ?? acc.trustScore,
-              flagStatus: dbUser.flagStatus ?? acc.flagStatus,
-              isFlagged: dbUser.isFlagged ?? acc.isFlagged,
-              warningCount: dbUser.warningCount ?? acc.warningCount,
-              approvedRefunds: dbUser.approvedRefunds ?? acc.approvedRefunds,
-              rejectedRefunds: dbUser.rejectedRefunds ?? acc.rejectedRefunds,
-              totalOrders: dbUser.totalOrders ?? acc.totalOrders
-            };
-          }
-        }
-      } catch (err) {
-        console.warn(`[MongoDB] Seed user check failed for ${acc.email}:`, err);
+  try {
+    for (const acc of seedAccounts) {
+      const existing = await (UserModel as any).findOne({ email: acc.email });
+      if (!existing) {
+        await (UserModel as any).create({
+          ...acc,
+          passwordHash: defaultPasswordHash,
+          avatarUrl: acc.profilePicture,
+          createdAt: new Date()
+        });
       }
     }
+
+    // Seed Restaurants if empty
+    if ((await (RestaurantModel as any).countDocuments()) === 0) {
+      await (RestaurantModel as any).insertMany(MOCK_RESTAURANTS as any);
+    }
+
+    // Seed Orders if empty
+    if ((await (OrderModel as any).countDocuments()) === 0) {
+      await (OrderModel as any).insertMany(MOCK_ORDERS as any);
+    }
+
+    // Seed Refunds if empty
+    if ((await (RefundRequestModel as any).countDocuments()) === 0) {
+      await (RefundRequestModel as any).insertMany(MOCK_REFUNDS as any);
+    }
+
+    // Seed Employees if empty
+    if ((await (EmployeeModel as any).countDocuments()) === 0) {
+      await (EmployeeModel as any).insertMany(MOCK_DRIVERS as any);
+    }
+
+    // Seed Flash Deals if empty
+    if ((await (FlashDealModel as any).countDocuments()) === 0) {
+      await (FlashDealModel as any).insertMany(MOCK_FLASH_DEALS as any);
+    }
+
+    // Seed Notifications if empty
+    if ((await (NotificationModel as any).countDocuments()) === 0) {
+      await (NotificationModel as any).create([
+        {
+          id: 'notif_1',
+          type: 'RED_FLAG',
+          title: 'Red Flag: High Fraud Risk Detected',
+          message: 'User 3 (David) has been flagged with trust score 18/100 and refund privileges suspended.',
+          targetId: 'user_cust_3',
+          severity: 'critical',
+          isRead: false,
+          createdAt: new Date()
+        },
+        {
+          id: 'notif_2',
+          type: 'SUSPICIOUS_REFUND',
+          title: 'Suspicious Refund Under Review',
+          message: 'User 2 (Sarah) submitted a refund request with 45% image similarity match.',
+          targetId: 'user_cust_2',
+          severity: 'medium',
+          isRead: false,
+          createdAt: new Date()
+        }
+      ]);
+    }
+
+    // Seed Trust History Logs if empty
+    if ((await (TrustScoreModel as any).countDocuments()) === 0) {
+      await (TrustScoreModel as any).create([
+        {
+          id: 'log_1',
+          userId: 'user_cust_3',
+          userName: 'User 3 (David)',
+          previousScore: 28,
+          newScore: 18,
+          delta: -10,
+          reason: 'Low image similarity claim mismatch (-10 penalty)',
+          event: 'TRUST_PENALTY',
+          timestamp: new Date()
+        }
+      ]);
+    }
+
+    console.log('Seed complete');
+  } catch (err) {
+    console.error('Error during MongoDB seeding:', err);
   }
 
   // Socket.IO real-time event listeners
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     console.log('[Socket.IO] Client connected:', socket.id);
-    socket.emit('initial_data', {
-      orders,
-      refunds,
-      notifications,
-      users,
-      employees
-    });
+    try {
+      const [dbOrders, dbRefunds, dbNotifications, dbUsers, dbEmployees] = await Promise.all([
+        (OrderModel as any).find().lean(),
+        (RefundRequestModel as any).find().lean(),
+        (NotificationModel as any).find().lean(),
+        (UserModel as any).find().lean(),
+        (EmployeeModel as any).find().lean()
+      ]);
+      socket.emit('initial_data', {
+        orders: dbOrders,
+        refunds: dbRefunds,
+        notifications: dbNotifications,
+        users: dbUsers,
+        employees: dbEmployees
+      });
+    } catch (err) {
+      console.error('Socket initial data error:', err);
+    }
   });
 
-  // Helper function to sync trust score and emit socket event + persist to MongoDB
-  const updateUserTrust = async (userId: string, newScore: number, reason: string) => {
-    const user = users.find(u => u.id === userId);
-    if (!user) return;
+  console.log('Socket.IO Ready');
 
-    const oldScore = user.trustScore;
-    const delta = newScore - oldScore;
-    user.trustScore = newScore;
+  // Helper function for user trust updates & socket broadcasts
+  const updateUserStateInDb = async (userId: string, updates: Partial<any>, logReason?: string) => {
+    const user = await (UserModel as any).findOne({ id: userId });
+    if (!user) return null;
+
+    const previousScore = user.trustScore;
+
+    // Apply updates
+    Object.assign(user, updates);
     user.lastActivity = new Date().toISOString();
 
-    // Check for Red Flag status
-    if (newScore < 50 && user.flagStatus !== 'RED') {
-      user.flagStatus = 'RED';
-      user.isFlagged = true;
-      const newNotif: NotificationItem = {
-        id: `notif_${Date.now()}`,
-        type: 'RED_FLAG',
-        title: `RED FLAG: Customer ${user.name} Trust Dropped Below 50`,
-        message: `User trust score dropped to ${newScore}/100. Refund privileges review recommended.`,
-        targetId: userId,
-        severity: 'critical',
-        isRead: false,
-        createdAt: new Date().toISOString()
-      };
-      notifications.unshift(newNotif);
-      io.emit('notification_created', newNotif);
+    await user.save();
 
-      if (isDbConnected()) {
-        try {
-          await NotificationModel.create(newNotif);
-        } catch (e) {
-          console.warn('[MongoDB] Failed to persist notification:', e);
-        }
-      }
+    // Trust Log if score changed or log reason provided
+    if (logReason || updates.trustScore !== undefined) {
+      const delta = (user.trustScore ?? previousScore) - previousScore;
+      const log = new (TrustScoreModel as any)({
+        id: `log_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        userId: user.id,
+        userName: user.name,
+        previousScore,
+        newScore: user.trustScore,
+        delta,
+        reason: logReason || (delta >= 0 ? 'Trust score increased' : 'Trust score decreased'),
+        event: delta >= 0 ? 'TRUST_REWARD' : 'TRUST_PENALTY',
+        timestamp: new Date()
+      });
+      await log.save();
     }
 
-    // Persist user update to MongoDB
-    if (isDbConnected()) {
-      try {
-        await (UserModel as any).updateOne(
-          { id: userId },
-          {
-            $set: {
-              trustScore: newScore,
-              flagStatus: user.flagStatus,
-              isFlagged: user.isFlagged,
-              warningCount: user.warningCount,
-              lastActivity: user.lastActivity,
-              approvedRefunds: user.approvedRefunds,
-              rejectedRefunds: user.rejectedRefunds,
-              totalOrders: user.totalOrders
-            }
-          }
-        );
-      } catch (e) {
-        console.warn('[MongoDB] Failed to update user in DB:', e);
-      }
+    const safeUser = user.toObject();
+    delete safeUser.passwordHash;
+
+    // Emit Socket.IO updates
+    io.emit('trust_updated', { userId: user.id, newScore: user.trustScore, user: safeUser });
+    io.emit('user_updated', safeUser);
+
+    if (updates.isFlagged !== undefined) {
+      io.emit('user_flagged', { userId: user.id, isFlagged: user.isFlagged, flagStatus: user.flagStatus });
     }
 
-    // Sync across orders & refunds in memory
-    orders = orders.map(o => o.customerId === userId ? { ...o, customerTrustScore: newScore } : o);
-    refunds = refunds.map(r => r.customerId === userId ? { ...r, customerTrustScore: newScore } : r);
+    if (updates.refundSuspended !== undefined || updates.refundPrivilegesSuspended !== undefined) {
+      const isSusp = !!(user.refundSuspended || user.refundPrivilegesSuspended);
+      io.emit(isSusp ? 'refund_suspended' : 'refund_restored', { userId: user.id, user: safeUser });
+    }
 
-    // Add Trust Log
-    const log: TrustScoreLog = {
-      id: `log_${Date.now()}`,
-      userId,
-      userName: user.name,
-      previousScore: oldScore,
-      newScore,
-      delta,
-      reason,
-      event: delta < 0 ? 'TRUST_PENALTY' : 'TRUST_REWARD',
-      timestamp: new Date().toISOString()
-    };
-    trustLogs.unshift(log);
-
-    // Real-time Socket Emission
-    io.emit('trust_updated', { userId, newScore, user, log });
+    return safeUser;
   };
 
   // --- AUTHENTICATION API ---
 
   // Signup
-  app.post('/api/auth/signup', (req, res) => {
-    const { name, email, password, role } = req.body;
-    if (!email || !password || !name) {
-      return res.status(400).json({ error: 'Name, email and password are required.' });
+  app.post('/api/auth/signup', async (req, res) => {
+    try {
+      const { name, email, password, role } = req.body;
+      if (!email || !password || !name) {
+        return res.status(400).json({ error: 'Name, email and password are required.' });
+      }
+
+      const existing = await (UserModel as any).findOne({ email: email.toLowerCase() });
+      if (existing) {
+        return res.status(400).json({ error: 'An account with this email already exists.' });
+      }
+
+      const newUser = await (UserModel as any).create({
+        id: `usr_${Math.floor(100000 + Math.random() * 900000)}`,
+        name,
+        email: email.toLowerCase(),
+        passwordHash: hashPassword(password),
+        role: role === 'support' ? 'support' : 'customer',
+        trustScore: 85,
+        flagStatus: 'GREEN',
+        isFlagged: false,
+        warningCount: 0,
+        refundSuspended: false,
+        refundPrivilegesSuspended: false,
+        profilePicture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+        totalOrders: 0,
+        approvedRefunds: 0,
+        rejectedRefunds: 0,
+        createdAt: new Date()
+      });
+
+      const token = generateToken({
+        id: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
+        name: newUser.name
+      });
+
+      io.emit('user_login', { userId: newUser.id, name: newUser.name });
+
+      const safeUser = newUser.toObject();
+      delete safeUser.passwordHash;
+      res.status(201).json({ token, user: safeUser });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Signup failed' });
     }
-
-    const existing = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (existing) {
-      return res.status(400).json({ error: 'An account with this email already exists.' });
-    }
-
-    const newUser = {
-      id: `usr_${Math.floor(1000 + Math.random() * 9000)}`,
-      name,
-      email: email.toLowerCase(),
-      passwordHash: hashPassword(password),
-      role: role === 'support' ? 'support' : 'customer',
-      trustScore: 85,
-      flagStatus: 'GREEN',
-      profilePicture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-      totalOrders: 0,
-      approvedRefunds: 0,
-      rejectedRefunds: 0,
-      createdAt: new Date().toISOString()
-    };
-
-    users.unshift(newUser as any);
-
-    const token = generateToken({
-      id: newUser.id,
-      email: newUser.email,
-      role: newUser.role,
-      name: newUser.name
-    });
-
-    const { passwordHash: _, ...safeUser } = newUser;
-    res.status(201).json({ token, user: safeUser });
   });
 
   // Login
-  app.post('/api/auth/login', (req, res) => {
-    const { email, password } = req.body;
-    const user = users.find(u => u.email.toLowerCase() === email?.toLowerCase());
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      const user = await (UserModel as any).findOne({ email: email?.toLowerCase() });
 
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
+      if (!user) {
+        return res.status(401).json({ error: 'Invalid email or password.' });
+      }
+
+      const isValid = user.passwordHash
+        ? comparePassword(password, user.passwordHash)
+        : password === 'password123';
+
+      if (!isValid) {
+        return res.status(401).json({ error: 'Invalid email or password.' });
+      }
+
+      user.lastActivity = new Date().toISOString();
+      await user.save();
+
+      const token = generateToken({
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.name
+      });
+
+      io.emit('user_login', { userId: user.id, name: user.name });
+
+      const safeUser = user.toObject();
+      delete safeUser.passwordHash;
+      res.json({ token, user: safeUser });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Login failed' });
     }
-
-    // Default seeded support password check or bcrypt check
-    const isValid = (user as any).passwordHash
-      ? comparePassword(password, (user as any).passwordHash)
-      : password === 'password123';
-
-    if (!isValid) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
-    }
-
-    const token = generateToken({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      name: user.name
-    });
-
-    const { passwordHash: _, ...safeUser } = user as any;
-    res.json({ token, user: safeUser });
   });
 
-  // Get Current User
-  app.get('/api/auth/me', authenticateToken, (req: AuthRequest, res) => {
-    const user = users.find(u => u.id === req.user?.id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    const { passwordHash: _, ...safeUser } = user as any;
-    res.json(safeUser);
+  // Get Current User (MongoDB direct query)
+  app.get('/api/auth/me', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const user = await (UserModel as any).findOne({ id: req.user?.id });
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      const safeUser = user.toObject();
+      delete safeUser.passwordHash;
+      res.json(safeUser);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
-
-  // --- DOMAIN API ROUTES ---
 
   // Health check
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', app: 'TrustBite AI Multi-User' });
+    res.json({ status: 'ok', app: 'TrustBite AI Multi-User MongoDB', dbConnected: isDbConnected() });
   });
 
   // Users API
-  app.get('/api/users', (req, res) => {
-    res.json(users);
+  app.get('/api/users', async (req, res) => {
+    try {
+      const users = await (UserModel as any).find().select('-passwordHash').sort({ createdAt: -1 }).lean();
+      res.json(users);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  app.get('/api/users/:id/trust-history', (req, res) => {
-    const userLogs = trustLogs.filter(l => l.userId === req.params.id);
-    res.json(userLogs);
+  app.get('/api/users/:id', async (req, res) => {
+    try {
+      const user = await (UserModel as any).findOne({ id: req.params.id }).select('-passwordHash').lean();
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      res.json(user);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  app.post('/api/users/:id/flag', (req, res) => {
+  app.get('/api/users/:id/trust-history', async (req, res) => {
+    try {
+      const logs = await (TrustScoreModel as any).find({ userId: req.params.id }).sort({ timestamp: -1 }).lean();
+      res.json(logs);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // UNIFIED SUPPORT ACTION ENDPOINT
+  app.post('/api/support/users/:id/action', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action, scoreDelta, reason } = req.body;
+      const user = await (UserModel as any).findOne({ id });
+      if (!user) return res.status(404).json({ error: 'User not found' });
+
+      let updates: Partial<any> = {};
+      let notifTitle = '';
+      let notifMessage = '';
+      let logReason = reason || '';
+
+      switch (action) {
+        case 'restore_trust': {
+          const newScore = Math.max(75, (user.trustScore || 0) + 25);
+          updates = {
+            trustScore: newScore,
+            isFlagged: false,
+            flagStatus: 'GREEN',
+            refundSuspended: false,
+            refundPrivilegesSuspended: false,
+            warningCount: Math.max(0, (user.warningCount || 0) - 1)
+          };
+          notifTitle = 'Trust Score Restored & Account Unflagged';
+          notifMessage = `Support restored your trust score to ${newScore}/100. Red flag removed and instant refund privileges are now active!`;
+          logReason = logReason || 'Support Team restored trust score and cleared account restrictions';
+          break;
+        }
+        case 'mark_red_flag': {
+          updates = {
+            isFlagged: true,
+            flagStatus: 'RED',
+            refundSuspended: true,
+            refundPrivilegesSuspended: true
+          };
+          notifTitle = 'Account Marked RED FLAG';
+          notifMessage = 'Your account has been flagged for policy compliance audit. Automated instant refunds have been suspended.';
+          logReason = logReason || 'Support Team placed RED FLAG and suspended refund privileges';
+          break;
+        }
+        case 'remove_red_flag': {
+          const flagStatus = (user.trustScore || 0) >= 75 ? 'GREEN' : 'YELLOW';
+          updates = {
+            isFlagged: false,
+            flagStatus,
+            refundSuspended: false,
+            refundPrivilegesSuspended: false
+          };
+          notifTitle = 'RED FLAG Restriction Removed';
+          notifMessage = 'Support has removed the RED FLAG restriction from your account. Refund privileges have been restored.';
+          logReason = logReason || 'Support Team removed RED FLAG and restored privileges';
+          break;
+        }
+        case 'suspend_refunds': {
+          updates = {
+            refundSuspended: true,
+            refundPrivilegesSuspended: true
+          };
+          notifTitle = 'Refund Privileges Suspended';
+          notifMessage = 'Your instant refund privileges have been suspended by Support.';
+          logReason = logReason || 'Support Team suspended refund privileges';
+          break;
+        }
+        case 'restore_refunds': {
+          const isFlagged = (user.trustScore || 0) <= 30;
+          updates = {
+            refundSuspended: false,
+            refundPrivilegesSuspended: false,
+            isFlagged,
+            flagStatus: (user.trustScore || 0) >= 75 ? 'GREEN' : isFlagged ? 'RED' : 'YELLOW'
+          };
+          notifTitle = 'Refund Privileges Restored';
+          notifMessage = 'Your instant refund privileges have been restored by Support.';
+          logReason = logReason || 'Support Team restored refund privileges';
+          break;
+        }
+        case 'warn_user': {
+          const newWarn = (user.warningCount || 0) + 1;
+          const newScore = Math.max(0, (user.trustScore || 85) - 15);
+          const isRed = newScore <= 30 || newWarn >= 3;
+          updates = {
+            warningCount: newWarn,
+            trustScore: newScore,
+            isFlagged: isRed ? true : user.isFlagged,
+            flagStatus: isRed ? 'RED' : user.flagStatus,
+            refundSuspended: isRed ? true : user.refundSuspended,
+            refundPrivilegesSuspended: isRed ? true : user.refundPrivilegesSuspended
+          };
+          notifTitle = `Formal Warning Issued (${newWarn}/3)`;
+          notifMessage = `You received a warning from Support. Your trust score was reduced by 15 to ${newScore}/100.`;
+          logReason = logReason || `Support issued formal warning #${newWarn} (-15 trust score penalty)`;
+          break;
+        }
+        case 'set_trust':
+        default: {
+          const newScore = Math.max(0, Math.min(100, (user.trustScore || 85) + (Number(scoreDelta) || 0)));
+          const isRestored = newScore > 40;
+          updates = {
+            trustScore: newScore,
+            isFlagged: isRestored ? false : user.isFlagged,
+            flagStatus: newScore >= 75 ? 'GREEN' : newScore <= 30 ? 'RED' : 'YELLOW',
+            refundSuspended: isRestored ? false : user.refundSuspended,
+            refundPrivilegesSuspended: isRestored ? false : user.refundPrivilegesSuspended
+          };
+          notifTitle = `Trust Score Updated (${newScore}/100)`;
+          notifMessage = `Your trust score was updated to ${newScore}/100 by Support.`;
+          logReason = logReason || `Support adjusted trust score to ${newScore}`;
+          break;
+        }
+      }
+
+      // Update user in MongoDB
+      const updatedUser = await updateUserStateInDb(user.id, updates, logReason);
+
+      // Create Notification in MongoDB
+      if (notifTitle) {
+        const notif = await (NotificationModel as any).create({
+          id: `notif_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+          type: updates.isFlagged ? 'RED_FLAG' : 'HIGH_TRUST_REFUND',
+          title: notifTitle,
+          message: notifMessage,
+          targetId: user.id,
+          severity: updates.isFlagged ? 'critical' : 'medium',
+          isRead: false,
+          createdAt: new Date()
+        });
+        io.emit('notification_created', notif.toObject());
+        io.emit('support_action', { userId: user.id, action, updatedUser });
+      }
+
+      res.json(updatedUser);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Support action failed' });
+    }
+  });
+
+  // Flag user direct endpoint
+  app.post('/api/users/:id/flag', async (req, res) => {
     const { id } = req.params;
     const { flagStatus } = req.body;
-    const user = users.find(u => u.id === id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    user.flagStatus = flagStatus;
-    io.emit('user_updated', user);
-    res.json(user);
+    const action = flagStatus === 'RED' ? 'mark_red_flag' : 'remove_red_flag';
+    req.body.action = action;
+    return (app as any)._router.handle(req, res);
   });
 
-  app.post('/api/users/:id/suspend-refunds', (req, res) => {
+  // Suspend refunds direct endpoint
+  app.post('/api/users/:id/suspend-refunds', async (req, res) => {
     const { id } = req.params;
     const { suspended } = req.body;
-    const user = users.find(u => u.id === id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const action = suspended ? 'suspend_refunds' : 'restore_refunds';
+    req.body.action = action;
+    return (app as any)._router.handle(req, res);
+  });
 
-    (user as any).refundPrivilegesSuspended = suspended;
-    io.emit('user_updated', user);
-    res.json(user);
+  // Trust score direct endpoint
+  app.post('/api/users/:id/trust-score', async (req, res) => {
+    req.body.action = 'set_trust';
+    req.body.scoreDelta = req.body.delta;
+    return (app as any)._router.handle(req, res);
   });
 
   // Restaurants API
-  app.get('/api/restaurants', (req, res) => {
-    res.json(restaurants);
+  app.get('/api/restaurants', async (req, res) => {
+    try {
+      const list = await (RestaurantModel as any).find().lean();
+      res.json(list);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Orders API
-  app.get('/api/orders', (req, res) => {
-    res.json(orders);
-  });
-
-  app.post('/api/orders', (req, res) => {
-    const { customerId, restaurantId, items, deliveryFee, address } = req.body;
-    const user = users.find(u => u.id === customerId) || users[0];
-    const restaurant = restaurants.find(r => r.id === restaurantId) || restaurants[0];
-
-    const subtotal = items.reduce((acc: number, item: any) => acc + (item.menuItem.price * item.quantity), 0);
-    const total = subtotal + (deliveryFee || 3.50);
-
-    const newOrder: Order = {
-      id: `TB-${Math.floor(1000 + Math.random() * 9000)}`,
-      customerId: user.id,
-      customerName: user.name,
-      customerTrustScore: user.trustScore,
-      restaurantId: restaurant.id,
-      restaurantName: restaurant.name,
-      items,
-      subtotal,
-      deliveryFee: deliveryFee || 3.50,
-      total,
-      status: 'placed',
-      createdAt: new Date().toISOString()
-    };
-
-    orders.unshift(newOrder);
-    user.totalOrders = (user.totalOrders || 0) + 1;
-
-    // Realtime Broadcast
-    io.emit('order_created', newOrder);
-
-    res.status(201).json(newOrder);
-  });
-
-  // Restaurant Dispatch Evidence Upload
-  app.put('/api/orders/:id/dispatch', (req, res) => {
-    const { id } = req.params;
-    const { packagingPhoto, billPhoto, notes } = req.body;
-
-    const orderIndex = orders.findIndex(o => o.id === id);
-    if (orderIndex === -1) {
-      return res.status(404).json({ error: 'Order not found' });
+  app.get('/api/orders', async (req, res) => {
+    try {
+      const { customerId } = req.query;
+      const query: any = customerId ? { customerId } : {};
+      const list = await (OrderModel as any).find(query).sort({ createdAt: -1 }).lean();
+      res.json(list);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
+  });
 
-    orders[orderIndex] = {
-      ...orders[orderIndex],
-      status: 'dispatched',
-      dispatchEvidence: {
+  app.post('/api/orders', async (req, res) => {
+    try {
+      const { customerId, restaurantId, items, deliveryFee } = req.body;
+      const user = await (UserModel as any).findOne({ id: customerId }) || await (UserModel as any).findOne();
+      const restaurant = await (RestaurantModel as any).findOne({ id: restaurantId }) || await (RestaurantModel as any).findOne();
+
+      if (!user || !restaurant) {
+        return res.status(400).json({ error: 'User or Restaurant not found' });
+      }
+
+      const subtotal = items.reduce((acc: number, item: any) => acc + (item.menuItem.price * item.quantity), 0);
+      const total = subtotal + (deliveryFee || 3.50);
+
+      const newOrder = await (OrderModel as any).create({
+        id: `TB-${Math.floor(1000 + Math.random() * 9000)}`,
+        customerId: user.id,
+        customerName: user.name,
+        customerTrustScore: user.trustScore,
+        restaurantId: restaurant.id,
+        restaurantName: restaurant.name,
+        items,
+        subtotal,
+        deliveryFee: deliveryFee || 3.50,
+        total,
+        status: 'placed',
+        createdAt: new Date()
+      });
+
+      // Update user total orders
+      user.totalOrders = (user.totalOrders || 0) + 1;
+      await user.save();
+
+      const orderObj = newOrder.toObject();
+
+      // Realtime Broadcast
+      io.emit('order_created', orderObj);
+
+      res.status(201).json(orderObj);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Dispatch Evidence Upload
+  app.put('/api/orders/:id/dispatch', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { packagingPhoto, billPhoto, notes } = req.body;
+
+      const order = await (OrderModel as any).findOne({ id });
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+
+      order.status = 'dispatched';
+      order.dispatchEvidence = {
         packagingPhoto: packagingPhoto || 'https://images.unsplash.com/photo-1585238342024-78d387f4a707?w=600',
         billPhoto: billPhoto || 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=600',
         timestamp: new Date().toISOString(),
         notes
-      }
-    };
+      };
 
-    io.emit('order_updated', orders[orderIndex]);
-    res.json(orders[orderIndex]);
+      await order.save();
+
+      // Store in DispatchPhoto collection
+      await (DispatchPhotoModel as any).create({
+        id: `disp_${Date.now()}`,
+        orderId: order.id,
+        restaurantId: order.restaurantId,
+        packagingPhoto: order.dispatchEvidence.packagingPhoto,
+        billPhoto: order.dispatchEvidence.billPhoto,
+        notes,
+        timestamp: new Date()
+      });
+
+      const orderObj = order.toObject();
+      io.emit('dispatch_uploaded', { orderId: order.id, dispatchEvidence: order.dispatchEvidence });
+      io.emit('order_updated', orderObj);
+
+      res.json(orderObj);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  // Refunds API - Submit & Gemini AI Evaluation
-  app.get('/api/refunds', (req, res) => {
-    res.json(refunds);
+  // Refunds API - Submit & Gemini Vision Evaluation
+  app.get('/api/refunds', async (req, res) => {
+    try {
+      const { customerId } = req.query;
+      const query: any = customerId ? { customerId } : {};
+      const list = await (RefundRequestModel as any).find(query).sort({ submittedAt: -1 }).lean();
+      res.json(list);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   app.post('/api/refunds/submit', async (req, res) => {
     try {
       const { orderId, reason, complaintPhoto, customerNotes } = req.body;
-      const order = orders.find(o => o.id === orderId);
+      const order = await (OrderModel as any).findOne({ id: orderId });
       if (!order) {
         return res.status(404).json({ error: 'Associated order not found' });
       }
 
-      const user = users.find(u => u.id === order.customerId) || users[0];
+      const user = await (UserModel as any).findOne({ id: order.customerId });
+      if (!user) {
+        return res.status(404).json({ error: 'Customer account not found' });
+      }
 
-      if ((user as any).refundPrivilegesSuspended) {
+      if (user.refundSuspended || user.refundPrivilegesSuspended) {
         return res.status(403).json({ error: 'Refund privileges have been suspended for this account by Support.' });
       }
 
-      // Run Gemini AI Agents
+      // Run Gemini AI Vision Agent
       const aiAnalysis = await runRefundAIAgents({
         reason,
         customerNotes,
@@ -558,7 +722,7 @@ async function startServer() {
         initialStatus = 'pending_admin';
       }
 
-      const newRefund: RefundRequest = {
+      const newRefund = await (RefundRequestModel as any).create({
         id: `ref_${Math.floor(100 + Math.random() * 900)}`,
         orderId: order.id,
         customerId: user.id,
@@ -571,49 +735,47 @@ async function startServer() {
         customerNotes,
         status: initialStatus,
         amount: order.total,
-        submittedAt: new Date().toISOString(),
+        submittedAt: new Date(),
         aiAnalysis,
-        processedAt: initialStatus === 'approved_auto' ? new Date().toISOString() : undefined
-      };
+        processedAt: initialStatus === 'approved_auto' ? new Date() : undefined
+      });
 
-      refunds.unshift(newRefund);
+      order.refundRequestId = newRefund.id;
+      await order.save();
 
-      // Link order
-      const orderIdx = orders.findIndex(o => o.id === orderId);
-      if (orderIdx !== -1) {
-        orders[orderIdx].refundRequestId = newRefund.id;
-      }
+      const refundObj = newRefund.toObject();
 
       if (initialStatus === 'approved_auto') {
         const newScore = Math.min(100, user.trustScore + 2);
-        await updateUserTrust(user.id, newScore, `Automated refund approved (High similarity: ${similarity}%)`);
+        user.trustScore = newScore;
         user.approvedRefunds = (user.approvedRefunds || 0) + 1;
+        await user.save();
 
-        const custNotif: NotificationItem = {
+        await updateUserStateInDb(user.id, { trustScore: newScore, approvedRefunds: user.approvedRefunds }, `Automated refund approved (High similarity: ${similarity}%)`);
+
+        const custNotif = await (NotificationModel as any).create({
           id: `notif_${Date.now()}`,
           type: 'HIGH_TRUST_REFUND',
           title: `Refund Approved ($${order.total.toFixed(2)})`,
-          message: `Your refund request for Order #${order.id} was approved automatically. Trust score +2!`,
+          message: `Your refund request for Order #${order.id} was approved automatically by AI. Trust score +2!`,
           targetId: user.id,
           severity: 'low',
           isRead: false,
-          createdAt: new Date().toISOString()
-        };
-        notifications.unshift(custNotif);
-        io.emit('notification_created', custNotif);
+          createdAt: new Date()
+        });
+        io.emit('notification_created', custNotif.toObject());
       } else if (similarity >= 40 && similarity <= 69) {
-        const custNotif: NotificationItem = {
+        const custNotif = await (NotificationModel as any).create({
           id: `notif_${Date.now()}`,
           type: 'SUSPICIOUS_REFUND',
           title: `Refund Request Under Support Review`,
-          message: `Your refund request for Order #${order.id} is under support review (Similarity: ${similarity}%).`,
+          message: `Your refund request for Order #${order.id} is undergoing Support Team review (Similarity: ${similarity}%).`,
           targetId: user.id,
           severity: 'medium',
           isRead: false,
-          createdAt: new Date().toISOString()
-        };
-        notifications.unshift(custNotif);
-        io.emit('notification_created', custNotif);
+          createdAt: new Date()
+        });
+        io.emit('notification_created', custNotif.toObject());
       } else {
         const oldScore = user.trustScore;
         const newScore = Math.max(0, user.trustScore - 10);
@@ -622,11 +784,23 @@ async function startServer() {
         if (user.warningCount >= 2 || newScore <= 30) {
           user.isFlagged = true;
           user.flagStatus = 'RED';
+          user.refundSuspended = true;
+          user.refundPrivilegesSuspended = true;
         }
 
-        await updateUserTrust(user.id, newScore, `Low similarity (${similarity}%) claim penalty (-10)`);
+        user.trustScore = newScore;
+        await user.save();
 
-        const fraudNotif: NotificationItem = {
+        await updateUserStateInDb(user.id, {
+          trustScore: newScore,
+          warningCount: user.warningCount,
+          isFlagged: user.isFlagged,
+          flagStatus: user.flagStatus,
+          refundSuspended: user.refundSuspended,
+          refundPrivilegesSuspended: user.refundPrivilegesSuspended
+        }, `Low similarity (${similarity}%) claim penalty (-10)`);
+
+        const fraudNotif = await (NotificationModel as any).create({
           id: `notif_${Date.now()}_fraud`,
           type: 'RED_FLAG',
           title: `RED FLAG: Fraud Risk Claim (${similarity}%) for ${user.name}`,
@@ -634,12 +808,11 @@ async function startServer() {
           targetId: user.id,
           severity: 'critical',
           isRead: false,
-          createdAt: new Date().toISOString()
-        };
-        notifications.unshift(fraudNotif);
-        io.emit('notification_created', fraudNotif);
+          createdAt: new Date()
+        });
+        io.emit('notification_created', fraudNotif.toObject());
 
-        const custNotif: NotificationItem = {
+        const custNotif = await (NotificationModel as any).create({
           id: `notif_${Date.now()}_cust`,
           type: 'SUSPICIOUS_REFUND',
           title: `Trust Score Penalized (-10)`,
@@ -647,134 +820,191 @@ async function startServer() {
           targetId: user.id,
           severity: 'high',
           isRead: false,
-          createdAt: new Date().toISOString()
-        };
-        notifications.unshift(custNotif);
-        io.emit('notification_created', custNotif);
+          createdAt: new Date()
+        });
+        io.emit('notification_created', custNotif.toObject());
       }
 
-      // Realtime Broadcast to Support Dashboard & Customer Laptops
-      io.emit('refund_submitted', newRefund);
+      // Realtime Broadcasts
+      io.emit('refund_submitted', refundObj);
+      io.emit('ai_verification_completed', { refundId: newRefund.id, aiAnalysis });
 
-      res.status(201).json(newRefund);
+      res.status(201).json(refundObj);
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Refund processing failed' });
     }
   });
 
   // Admin Review Decision API
-  app.post('/api/refunds/:id/review', (req, res) => {
-    const { id } = req.params;
-    const { decision, adminNotes } = req.body;
+  app.post('/api/refunds/:id/review', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { decision, adminNotes } = req.body;
 
-    const refundIndex = refunds.findIndex(r => r.id === id);
-    if (refundIndex === -1) return res.status(404).json({ error: 'Refund request not found' });
+      const refund = await (RefundRequestModel as any).findOne({ id });
+      if (!refund) return res.status(404).json({ error: 'Refund request not found' });
 
-    const refund = refunds[refundIndex];
-    const user = users.find(u => u.id === refund.customerId);
+      const newStatus: RefundStatus = decision === 'approve' ? 'approved_admin' : 'rejected_admin';
+      refund.status = newStatus;
+      refund.adminDecisionNotes = adminNotes;
+      refund.processedAt = new Date();
+      await refund.save();
 
-    let newStatus: RefundStatus = decision === 'approve' ? 'approved_admin' : 'rejected_admin';
-    refunds[refundIndex] = {
-      ...refund,
-      status: newStatus,
-      adminDecisionNotes: adminNotes,
-      processedAt: new Date().toISOString()
-    };
+      const user = await (UserModel as any).findOne({ id: refund.customerId });
+      if (user) {
+        if (decision === 'approve') {
+          const { newScore } = calculateUpdatedTrustScore(user.trustScore, 'REFUND_GENUINE_APPROVED');
+          const isRestored = newScore > 40;
+          await updateUserStateInDb(user.id, {
+            trustScore: newScore,
+            approvedRefunds: (user.approvedRefunds || 0) + 1,
+            isFlagged: isRestored ? false : user.isFlagged,
+            flagStatus: newScore >= 75 ? 'GREEN' : isRestored ? 'YELLOW' : 'RED',
+            refundSuspended: isRestored ? false : user.refundSuspended,
+            refundPrivilegesSuspended: isRestored ? false : user.refundPrivilegesSuspended
+          }, 'Admin approved refund after evidence inspection (+5 trust)');
 
-    if (user) {
-      if (decision === 'approve') {
-        const { newScore } = calculateUpdatedTrustScore(user.trustScore, 'REFUND_GENUINE_APPROVED');
-        updateUserTrust(user.id, newScore, 'Admin approved refund after evidence inspection');
-        user.approvedRefunds = (user.approvedRefunds || 0) + 1;
-      } else {
-        const { newScore } = calculateUpdatedTrustScore(user.trustScore, 'REFUND_FRAUD_DETECTED');
-        updateUserTrust(user.id, newScore, 'Admin rejected invalid/fraudulent refund claim');
-        user.rejectedRefunds = (user.rejectedRefunds || 0) + 1;
+          const notif = await (NotificationModel as any).create({
+            id: `notif_${Date.now()}`,
+            type: 'HIGH_TRUST_REFUND',
+            title: `Refund Request Approved ($${refund.amount.toFixed(2)})`,
+            message: `Your refund request for Order #${refund.orderId} was approved by Support after verification.`,
+            targetId: user.id,
+            severity: 'low',
+            isRead: false,
+            createdAt: new Date()
+          });
+          io.emit('notification_created', notif.toObject());
+        } else {
+          const { newScore } = calculateUpdatedTrustScore(user.trustScore, 'REFUND_FRAUD_DETECTED');
+          const isRed = newScore <= 30;
+          await updateUserStateInDb(user.id, {
+            trustScore: newScore,
+            rejectedRefunds: (user.rejectedRefunds || 0) + 1,
+            isFlagged: isRed ? true : user.isFlagged,
+            flagStatus: isRed ? 'RED' : user.flagStatus,
+            refundSuspended: isRed ? true : user.refundSuspended,
+            refundPrivilegesSuspended: isRed ? true : user.refundPrivilegesSuspended
+          }, 'Admin rejected invalid refund claim (-25 trust penalty)');
+
+          const notif = await (NotificationModel as any).create({
+            id: `notif_${Date.now()}`,
+            type: 'RED_FLAG',
+            title: `Refund Claim Rejected`,
+            message: `Your refund request for Order #${refund.orderId} was rejected by Support. Policy penalty applied.`,
+            targetId: user.id,
+            severity: 'high',
+            isRead: false,
+            createdAt: new Date()
+          });
+          io.emit('notification_created', notif.toObject());
+        }
       }
-    }
 
-    io.emit('refund_updated', refunds[refundIndex]);
-    res.json(refunds[refundIndex]);
+      const refundObj = refund.toObject();
+      io.emit('refund_updated', refundObj);
+      res.json(refundObj);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  // Employees API (Delivery Partners Trust System)
-  app.get('/api/employees', (req, res) => {
-    res.json(employees);
+  // Employees API
+  app.get('/api/employees', async (req, res) => {
+    try {
+      const list = await (EmployeeModel as any).find().lean();
+      res.json(list);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  app.post('/api/employees/:id/status', (req, res) => {
-    const { id } = req.params;
-    const { action } = req.body; // 'warn' | 'suspend' | 'restore'
+  app.post('/api/employees/:id/status', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action } = req.body;
 
-    const emp = employees.find(e => e.id === id);
-    if (!emp) return res.status(404).json({ error: 'Employee not found' });
+      const emp = await (EmployeeModel as any).findOne({ id });
+      if (!emp) return res.status(404).json({ error: 'Employee not found' });
 
-    if (action === 'warn') {
-      emp.status = 'warned';
-      emp.flagStatus = 'YELLOW';
-      emp.trustScore = Math.max(0, emp.trustScore - 15);
-    } else if (action === 'suspend') {
-      emp.status = 'suspended';
-      emp.flagStatus = 'RED';
-      emp.trustScore = Math.max(0, emp.trustScore - 30);
-    } else if (action === 'restore') {
-      emp.status = 'active';
-      emp.flagStatus = 'GREEN';
-      emp.trustScore = 95;
+      if (action === 'warn') {
+        emp.status = 'warned';
+        emp.flagStatus = 'YELLOW';
+        emp.trustScore = Math.max(0, emp.trustScore - 15);
+      } else if (action === 'suspend') {
+        emp.status = 'suspended';
+        emp.flagStatus = 'RED';
+        emp.trustScore = Math.max(0, emp.trustScore - 30);
+      } else if (action === 'restore') {
+        emp.status = 'active';
+        emp.flagStatus = 'GREEN';
+        emp.trustScore = 95;
+      }
+
+      await emp.save();
+      const empObj = emp.toObject();
+      io.emit('employee_updated', empObj);
+      res.json(empObj);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-
-    io.emit('employee_updated', emp);
-    res.json(emp);
   });
 
   // Notifications API
-  app.get('/api/notifications', (req, res) => {
-    res.json(notifications);
+  app.get('/api/notifications', async (req, res) => {
+    try {
+      const { userId } = req.query;
+      const query: any = userId ? { $or: [{ targetId: userId }, { targetId: 'all' }] } : {};
+      const list = await (NotificationModel as any).find(query).sort({ createdAt: -1 }).lean();
+      res.json(list);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  // Flash Marketplace API
-  app.get('/api/flash-deals', (req, res) => {
-    res.json(flashDeals);
+  // Flash Deals API
+  app.get('/api/flash-deals', async (req, res) => {
+    try {
+      const list = await (FlashDealModel as any).find().lean();
+      res.json(list);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  // Admin Analytics Overview API
-  app.get('/api/admin/stats', (req, res) => {
-    const totalRev = orders.reduce((acc, o) => acc + o.total, 0);
-    const instantRefunds = refunds.filter(r => r.status === 'approved_auto').length;
-    const fraudPrevented = refunds
-      .filter(r => r.status === 'rejected_admin')
-      .reduce((acc, r) => acc + r.amount, 0);
+  // Admin Stats API
+  app.get('/api/admin/stats', async (req, res) => {
+    try {
+      const orders = await (OrderModel as any).find().lean();
+      const refunds = await (RefundRequestModel as any).find().lean();
+      const users = await (UserModel as any).find().lean();
+      const flashDeals = await (FlashDealModel as any).find().lean();
 
-    const avgTrust = Math.round(users.reduce((acc, u) => acc + u.trustScore, 0) / (users.length || 1));
+      const totalRev = orders.reduce((acc: number, o: any) => acc + o.total, 0);
+      const instantRefunds = refunds.filter((r: any) => r.status === 'approved_auto').length;
+      const fraudPrevented = refunds
+        .filter((r: any) => r.status === 'rejected_admin')
+        .reduce((acc: number, r: any) => acc + r.amount, 0);
 
-    const stats: AdminStats = {
-      totalOrdersToday: orders.length + 14,
-      totalRevenueToday: Number((totalRev + 420.50).toFixed(2)),
-      refundRequestsCount: refunds.length,
-      instantRefundsCount: instantRefunds,
-      preventedFraudAmount: Number((fraudPrevented + 184.20).toFixed(2)),
-      averageTrustScore: avgTrust,
-      activeFlashDeals: flashDeals.filter(f => !f.isClaimed).length
-    };
+      const avgTrust = Math.round(users.reduce((acc: number, u: any) => acc + u.trustScore, 0) / (users.length || 1));
 
-    res.json(stats);
+      const stats: AdminStats = {
+        totalOrdersToday: orders.length + 14,
+        totalRevenueToday: Number((totalRev + 420.50).toFixed(2)),
+        refundRequestsCount: refunds.length,
+        instantRefundsCount: instantRefunds,
+        preventedFraudAmount: Number((fraudPrevented + 184.20).toFixed(2)),
+        averageTrustScore: avgTrust,
+        activeFlashDeals: flashDeals.filter((f: any) => !f.isClaimed).length
+      };
+
+      res.json(stats);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  // Manual Trust Score Edit API
-  app.post('/api/users/:id/trust-score', (req, res) => {
-    const { id } = req.params;
-    const { delta, reason } = req.body;
-
-    const user = users.find(u => u.id === id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    const newScore = Math.max(0, Math.min(100, user.trustScore + (Number(delta) || 0)));
-    updateUserTrust(id, newScore, reason || 'Support manual adjustment');
-
-    res.json({ userId: id, newScore, updatedUser: users.find(u => u.id === id) });
-  });
-
-  // --- VITE / STATIC SERVING ---
+  // VITE / STATIC SERVING
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

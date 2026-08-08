@@ -90,31 +90,35 @@ export async function fetchUsers(): Promise<User[]> {
   return res.json();
 }
 
-export async function updateTrustScore(userId: string, delta: number, reason: string) {
-  const res = await fetch(`${API_BASE}/users/${userId}/trust-score`, {
+export async function performSupportAction(userId: string, action: string, extraData?: any) {
+  const res = await fetch(`${API_BASE}/support/users/${userId}/action`, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ delta, reason })
+    body: JSON.stringify({ action, ...extraData })
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Support action failed');
+  return data;
+}
+
+export async function updateTrustScore(userId: string, delta: number, reason: string) {
+  return performSupportAction(userId, 'set_trust', { scoreDelta: delta, reason });
 }
 
 export async function toggleUserFlag(userId: string, flagStatus: 'GREEN' | 'YELLOW' | 'RED') {
-  const res = await fetch(`${API_BASE}/users/${userId}/flag`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ flagStatus })
-  });
-  return res.json();
+  if (flagStatus === 'RED') {
+    return performSupportAction(userId, 'mark_red_flag');
+  } else {
+    return performSupportAction(userId, 'remove_red_flag');
+  }
 }
 
 export async function toggleRefundPrivileges(userId: string, suspended: boolean) {
-  const res = await fetch(`${API_BASE}/users/${userId}/suspend-refunds`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ suspended })
-  });
-  return res.json();
+  if (suspended) {
+    return performSupportAction(userId, 'suspend_refunds');
+  } else {
+    return performSupportAction(userId, 'restore_refunds');
+  }
 }
 
 export async function fetchTrustScoreLogs(userId: string): Promise<TrustScoreLog[]> {

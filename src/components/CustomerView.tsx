@@ -46,7 +46,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
   const grandTotal = cartTotal + deliveryFee;
 
   const userOrders = orders.filter(o => currentUser ? o.customerId === currentUser.id : false);
-  const isFlaggedUser = !!(currentUser?.isFlagged || currentUser?.flagStatus === 'RED' || (currentUser?.trustScore !== undefined && currentUser.trustScore <= 30));
+  const isFlaggedUser = !!(currentUser?.isFlagged || currentUser?.flagStatus === 'RED' || currentUser?.refundSuspended || currentUser?.refundPrivilegesSuspended || (currentUser?.trustScore !== undefined && currentUser.trustScore <= 30));
 
   return (
     <div className="space-y-8 pb-12">

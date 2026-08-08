@@ -24,4 +24,4 @@ const TrustScoreSchema = new Schema<ITrustScoreLog>({
   timestamp: { type: Date, default: Date.now }
 });
 
-export const TrustScoreModel = mongoose.models.TrustScore || mongoose.model<ITrustScoreLog>('TrustScore', TrustScoreSchema);
+export const TrustScoreModel = mongoose.models.TrustScore || mongoose.model<ITrustScoreLog>('TrustScore', TrustScoreSchema, 'trusthistory');

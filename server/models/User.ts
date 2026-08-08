@@ -12,11 +12,13 @@ export interface IUser extends Document {
   warningCount?: number;
   lastActivity?: string;
   profilePicture: string;
+  avatarUrl?: string;
   totalOrders: number;
   approvedRefunds: number;
   rejectedRefunds: number;
   address?: string;
   refundPrivilegesSuspended?: boolean;
+  refundSuspended?: boolean;
   createdAt: Date;
 }
 
@@ -32,12 +34,14 @@ const UserSchema = new Schema<IUser>({
   warningCount: { type: Number, default: 0 },
   lastActivity: { type: String, default: () => new Date().toISOString() },
   profilePicture: { type: String, default: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' },
+  avatarUrl: { type: String, default: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' },
   totalOrders: { type: Number, default: 0 },
   approvedRefunds: { type: Number, default: 0 },
   rejectedRefunds: { type: Number, default: 0 },
   address: { type: String, default: '122 Tech Park, Suite 402, San Francisco, CA' },
   refundPrivilegesSuspended: { type: Boolean, default: false },
+  refundSuspended: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 
-export const UserModel = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);
+export const UserModel = mongoose.models.User || mongoose.model<IUser>('User', UserSchema, 'users');

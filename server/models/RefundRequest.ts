@@ -48,4 +48,4 @@ const RefundRequestSchema = new Schema<IRefundRequest>({
   processedAt: Date
 });
 
-export const RefundRequestModel = mongoose.models.RefundRequest || mongoose.model<IRefundRequest>('RefundRequest', RefundRequestSchema);
+export const RefundRequestModel = mongoose.models.RefundRequest || mongoose.model<IRefundRequest>('RefundRequest', RefundRequestSchema, 'refundrequests');

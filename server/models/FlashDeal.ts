@@ -34,4 +34,4 @@ const FlashDealSchema = new Schema<IFlashDeal>({
   createdAt: { type: Date, default: Date.now }
 });
 
-export const FlashDealModel = mongoose.models.FlashDeal || mongoose.model<IFlashDeal>('FlashDeal', FlashDealSchema);
+export const FlashDealModel = mongoose.models.FlashDeal || mongoose.model<IFlashDeal>('FlashDeal', FlashDealSchema, 'flashdeals');
