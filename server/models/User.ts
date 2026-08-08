@@ -8,6 +8,9 @@ export interface IUser extends Document {
   role: 'customer' | 'support' | 'admin';
   trustScore: number;
   flagStatus: 'GREEN' | 'YELLOW' | 'RED';
+  isFlagged?: boolean;
+  warningCount?: number;
+  lastActivity?: string;
   profilePicture: string;
   totalOrders: number;
   approvedRefunds: number;
@@ -25,6 +28,9 @@ const UserSchema = new Schema<IUser>({
   role: { type: String, enum: ['customer', 'support', 'admin'], default: 'customer' },
   trustScore: { type: Number, default: 85, min: 0, max: 100 },
   flagStatus: { type: String, enum: ['GREEN', 'YELLOW', 'RED'], default: 'GREEN' },
+  isFlagged: { type: Boolean, default: false },
+  warningCount: { type: Number, default: 0 },
+  lastActivity: { type: String, default: () => new Date().toISOString() },
   profilePicture: { type: String, default: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' },
   totalOrders: { type: Number, default: 0 },
   approvedRefunds: { type: Number, default: 0 },

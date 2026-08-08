@@ -61,7 +61,9 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({ user, 
         <div className="flex items-center gap-4">
           <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center min-w-[120px]">
             <div className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Trust Score</div>
-            <div className="text-2xl font-mono font-bold text-emerald-400 mt-0.5">{user.trustScore} / 100</div>
+            <div className={`text-2xl font-mono font-bold mt-0.5 ${user.trustScore >= 75 ? 'text-emerald-400' : user.trustScore >= 50 ? 'text-amber-400' : 'text-rose-400'}`}>
+              {user.trustScore} / 100
+            </div>
           </div>
           <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center min-w-[120px]">
             <div className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Total Orders</div>

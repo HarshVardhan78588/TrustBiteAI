@@ -285,20 +285,29 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
           </div>
 
-          {/* Users At Risk Section */}
+          {/* LIVE CUSTOMER WATCHLIST */}
           <div className="p-6 rounded-2xl bg-[#0a0a0a] border border-white/10 space-y-4">
-            <h3 className="font-bold text-sm text-white flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-400" /> Users At Risk & Red Flag Management
-            </h3>
+            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+              <div>
+                <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-400" /> LIVE CUSTOMER WATCHLIST (MongoDB Live Sync)
+                </h3>
+                <p className="text-xs text-white/40">Real-time monitoring of customer trust scores, warning counts, and refund privileges</p>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                {users.length} Active Customers
+              </span>
+            </div>
 
             <div className="divide-y divide-white/5 text-xs">
               {users.map((u) => (
-                <div key={u.id} className="py-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <img src={u.profilePicture || u.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} alt={u.name} className="w-10 h-10 rounded-full object-cover border border-white/10" />
-                    <div>
-                      <div className="font-bold text-white flex items-center gap-2">
+                <div key={u.id} className="py-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <img src={u.profilePicture || u.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} alt={u.name} className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0 mt-1" />
+                    <div className="space-y-1">
+                      <div className="font-bold text-white flex flex-wrap items-center gap-2">
                         <span>{u.name}</span>
+                        <span className="text-white/40 font-normal">({u.email})</span>
                         <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-full border ${
                           u.flagStatus === 'GREEN' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : u.flagStatus === 'YELLOW' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                         }`}>
@@ -310,11 +319,25 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-white/40">{u.email} • Trust Score: <strong className={u.trustScore >= 75 ? 'text-emerald-400' : u.trustScore >= 50 ? 'text-amber-400' : 'text-rose-400'}>{u.trustScore}/100</strong></div>
+
+                      <div className="flex flex-wrap items-center gap-4 text-[11px] text-white/50">
+                        <span>Trust Score: <strong className={u.trustScore >= 75 ? 'text-emerald-400' : u.trustScore >= 50 ? 'text-amber-400' : 'text-rose-400'}>{u.trustScore}/100</strong></span>
+                        <span>• Warnings: <strong className="text-amber-300 font-mono">{u.warningCount || 0}</strong></span>
+                        <span>• Approved Refunds: <strong className="text-emerald-400 font-mono">{u.approvedRefunds || 0}</strong></span>
+                        <span>• Rejected Refunds: <strong className="text-rose-400 font-mono">{u.rejectedRefunds || 0}</strong></span>
+                        <span>• Last Activity: <strong className="text-white/70">{u.lastActivity ? new Date(u.lastActivity).toLocaleTimeString() : 'Active now'}</strong></span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0 self-end lg:self-center">
+                    <button
+                      onClick={() => onUpdateTrustScore(u.id, 15, 'Support restored trust score')}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-bold text-xs transition-all flex items-center gap-1"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" /> Restore Trust (+15)
+                    </button>
+
                     <button
                       onClick={() => handleToggleFlag(u.id, u.flagStatus || 'GREEN')}
                       className={`px-3 py-1.5 rounded-lg font-bold text-xs border transition-all flex items-center gap-1 ${

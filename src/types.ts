@@ -8,6 +8,9 @@ export interface User {
   role: UserRole;
   trustScore: number;
   flagStatus: FlagStatus;
+  isFlagged?: boolean;
+  warningCount?: number;
+  lastActivity?: string;
   profilePicture: string;
   avatarUrl?: string;
   totalOrders: number;
@@ -125,6 +128,8 @@ export type RefundStatus = 'pending_ai' | 'approved_auto' | 'pending_admin' | 'a
 export interface AIAgentAnalysis {
   confidenceScore: number; // 0-100
   fraudProbability: number; // 0-100
+  sameDish?: boolean;
+  similarity?: number; // 0-100
   imageMatch: boolean;
   itemDiscrepancyDetected: boolean;
   receiptValid: boolean;

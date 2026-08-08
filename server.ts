@@ -3,7 +3,7 @@ import http from 'http';
 import path from 'path';
 import { Server as SocketIOServer } from 'socket.io';
 import { createServer as createViteServer } from 'vite';
-import { connectToDatabase } from './server/db';
+import { connectToDatabase, isDbConnected } from './server/db';
 import { hashPassword, comparePassword, generateToken, authenticateToken, AuthRequest } from './server/auth';
 import { UserModel } from './server/models/User';
 import { OrderModel } from './server/models/Order';
@@ -112,23 +112,130 @@ async function startServer() {
     }
   ];
 
-  // Seed default Support Account in users array
-  const supportPasswordHash = hashPassword('password123');
-  const supportAccountIndex = users.findIndex(u => u.email === 'support@trustbite.ai');
-  if (supportAccountIndex === -1) {
-    users.push({
-      id: 'user_support_seeded',
+  // Seed required 4 accounts in MongoDB & in-memory users array
+  const defaultAccounts = [
+    {
+      id: 'user_support_1',
       name: 'TrustBite Support Team',
       email: 'support@trustbite.ai',
-      role: 'support',
+      role: 'support' as const,
       trustScore: 100,
-      flagStatus: 'GREEN',
+      flagStatus: 'GREEN' as const,
+      isFlagged: false,
+      warningCount: 0,
+      lastActivity: new Date().toISOString(),
       profilePicture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
       totalOrders: 0,
       approvedRefunds: 0,
-      rejectedRefunds: 0,
-      createdAt: new Date().toISOString()
-    } as any);
+      rejectedRefunds: 0
+    },
+    {
+      id: 'user_cust_1',
+      name: 'User 1 (Alex)',
+      email: 'user1@test.com',
+      role: 'customer' as const,
+      trustScore: 92,
+      flagStatus: 'GREEN' as const,
+      isFlagged: false,
+      warningCount: 0,
+      lastActivity: new Date().toISOString(),
+      profilePicture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      totalOrders: 12,
+      approvedRefunds: 1,
+      rejectedRefunds: 0
+    },
+    {
+      id: 'user_cust_2',
+      name: 'User 2 (Sarah)',
+      email: 'user2@test.com',
+      role: 'customer' as const,
+      trustScore: 74,
+      flagStatus: 'YELLOW' as const,
+      isFlagged: false,
+      warningCount: 1,
+      lastActivity: new Date().toISOString(),
+      profilePicture: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+      totalOrders: 8,
+      approvedRefunds: 3,
+      rejectedRefunds: 1
+    },
+    {
+      id: 'user_cust_3',
+      name: 'User 3 (David)',
+      email: 'user3@test.com',
+      role: 'customer' as const,
+      trustScore: 18,
+      flagStatus: 'RED' as const,
+      isFlagged: true,
+      warningCount: 4,
+      lastActivity: new Date().toISOString(),
+      profilePicture: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+      totalOrders: 15,
+      approvedRefunds: 2,
+      rejectedRefunds: 7
+    }
+  ];
+
+  const defaultPasswordHash = hashPassword('password123');
+
+  for (const acc of defaultAccounts) {
+    const existingIndex = users.findIndex(u => u.email.toLowerCase() === acc.email.toLowerCase());
+    if (existingIndex === -1) {
+      users.push({
+        ...acc,
+        passwordHash: defaultPasswordHash,
+        createdAt: new Date().toISOString()
+      } as any);
+    } else {
+      // Refresh memory seed user values
+      users[existingIndex] = {
+        ...users[existingIndex],
+        ...acc,
+        passwordHash: (users[existingIndex] as any).passwordHash || defaultPasswordHash
+      } as any;
+    }
+
+    // If MongoDB connected, persist seed account
+    if (isDbConnected()) {
+      try {
+        const dbUser = await (UserModel as any).findOne({ email: acc.email });
+        if (!dbUser) {
+          await UserModel.create({
+            id: acc.id,
+            name: acc.name,
+            email: acc.email,
+            passwordHash: defaultPasswordHash,
+            role: acc.role,
+            trustScore: acc.trustScore,
+            flagStatus: acc.flagStatus,
+            isFlagged: acc.isFlagged,
+            warningCount: acc.warningCount,
+            lastActivity: acc.lastActivity,
+            profilePicture: acc.profilePicture,
+            totalOrders: acc.totalOrders,
+            approvedRefunds: acc.approvedRefunds,
+            rejectedRefunds: acc.rejectedRefunds
+          });
+        } else {
+          // Sync existing db user into memory so DB is source of truth
+          const idx = users.findIndex(u => u.email.toLowerCase() === acc.email.toLowerCase());
+          if (idx !== -1) {
+            users[idx] = {
+              ...users[idx],
+              trustScore: dbUser.trustScore ?? acc.trustScore,
+              flagStatus: dbUser.flagStatus ?? acc.flagStatus,
+              isFlagged: dbUser.isFlagged ?? acc.isFlagged,
+              warningCount: dbUser.warningCount ?? acc.warningCount,
+              approvedRefunds: dbUser.approvedRefunds ?? acc.approvedRefunds,
+              rejectedRefunds: dbUser.rejectedRefunds ?? acc.rejectedRefunds,
+              totalOrders: dbUser.totalOrders ?? acc.totalOrders
+            };
+          }
+        }
+      } catch (err) {
+        console.warn(`[MongoDB] Seed user check failed for ${acc.email}:`, err);
+      }
+    }
   }
 
   // Socket.IO real-time event listeners
@@ -143,18 +250,20 @@ async function startServer() {
     });
   });
 
-  // Helper function to sync trust score and emit socket event
-  const updateUserTrust = (userId: string, newScore: number, reason: string) => {
+  // Helper function to sync trust score and emit socket event + persist to MongoDB
+  const updateUserTrust = async (userId: string, newScore: number, reason: string) => {
     const user = users.find(u => u.id === userId);
     if (!user) return;
 
     const oldScore = user.trustScore;
     const delta = newScore - oldScore;
     user.trustScore = newScore;
+    user.lastActivity = new Date().toISOString();
 
     // Check for Red Flag status
     if (newScore < 50 && user.flagStatus !== 'RED') {
       user.flagStatus = 'RED';
+      user.isFlagged = true;
       const newNotif: NotificationItem = {
         id: `notif_${Date.now()}`,
         type: 'RED_FLAG',
@@ -167,9 +276,40 @@ async function startServer() {
       };
       notifications.unshift(newNotif);
       io.emit('notification_created', newNotif);
+
+      if (isDbConnected()) {
+        try {
+          await NotificationModel.create(newNotif);
+        } catch (e) {
+          console.warn('[MongoDB] Failed to persist notification:', e);
+        }
+      }
     }
 
-    // Sync across orders & refunds
+    // Persist user update to MongoDB
+    if (isDbConnected()) {
+      try {
+        await (UserModel as any).updateOne(
+          { id: userId },
+          {
+            $set: {
+              trustScore: newScore,
+              flagStatus: user.flagStatus,
+              isFlagged: user.isFlagged,
+              warningCount: user.warningCount,
+              lastActivity: user.lastActivity,
+              approvedRefunds: user.approvedRefunds,
+              rejectedRefunds: user.rejectedRefunds,
+              totalOrders: user.totalOrders
+            }
+          }
+        );
+      } catch (e) {
+        console.warn('[MongoDB] Failed to update user in DB:', e);
+      }
+    }
+
+    // Sync across orders & refunds in memory
     orders = orders.map(o => o.customerId === userId ? { ...o, customerTrustScore: newScore } : o);
     refunds = refunds.map(r => r.customerId === userId ? { ...r, customerTrustScore: newScore } : r);
 
@@ -407,9 +547,12 @@ async function startServer() {
         restaurantName: order.restaurantName
       });
 
-      let initialStatus: RefundStatus = 'pending_ai';
+      const similarity = aiAnalysis.similarity ?? (aiAnalysis.sameDish ? 80 : 30);
+      let initialStatus: RefundStatus = 'pending_admin';
 
-      if (aiAnalysis.recommendedAction === 'INSTANT_REFUND' && user.trustScore >= 75) {
+      if (user.isFlagged || user.trustScore <= 30) {
+        initialStatus = 'pending_admin';
+      } else if (similarity >= 70) {
         initialStatus = 'approved_auto';
       } else {
         initialStatus = 'pending_admin';
@@ -442,28 +585,72 @@ async function startServer() {
       }
 
       if (initialStatus === 'approved_auto') {
-        const { newScore } = calculateUpdatedTrustScore(user.trustScore, 'REFUND_GENUINE_APPROVED');
-        updateUserTrust(user.id, newScore, 'Instant AI refund approved for verified genuine claim');
+        const newScore = Math.min(100, user.trustScore + 2);
+        await updateUserTrust(user.id, newScore, `Automated refund approved (High similarity: ${similarity}%)`);
         user.approvedRefunds = (user.approvedRefunds || 0) + 1;
+
+        const custNotif: NotificationItem = {
+          id: `notif_${Date.now()}`,
+          type: 'HIGH_TRUST_REFUND',
+          title: `Refund Approved ($${order.total.toFixed(2)})`,
+          message: `Your refund request for Order #${order.id} was approved automatically. Trust score +2!`,
+          targetId: user.id,
+          severity: 'low',
+          isRead: false,
+          createdAt: new Date().toISOString()
+        };
+        notifications.unshift(custNotif);
+        io.emit('notification_created', custNotif);
+      } else if (similarity >= 40 && similarity <= 69) {
+        const custNotif: NotificationItem = {
+          id: `notif_${Date.now()}`,
+          type: 'SUSPICIOUS_REFUND',
+          title: `Refund Request Under Support Review`,
+          message: `Your refund request for Order #${order.id} is under support review (Similarity: ${similarity}%).`,
+          targetId: user.id,
+          severity: 'medium',
+          isRead: false,
+          createdAt: new Date().toISOString()
+        };
+        notifications.unshift(custNotif);
+        io.emit('notification_created', custNotif);
       } else {
-        // High fraud risk alert trigger
-        if (aiAnalysis.fraudProbability > 60) {
-          const { newScore } = calculateUpdatedTrustScore(user.trustScore, 'REFUND_FRAUD_DETECTED');
-          updateUserTrust(user.id, newScore, `Fraud probability ${aiAnalysis.fraudProbability}% flagged by AI`);
-          
-          const alertNotif: NotificationItem = {
-            id: `notif_${Date.now()}`,
-            type: 'SUSPICIOUS_REFUND',
-            title: `High Fraud Risk Claim Flagged (#${newRefund.id})`,
-            message: `User ${user.name} submitted claim with ${aiAnalysis.fraudProbability}% fraud probability. Admin review required.`,
-            targetId: newRefund.id,
-            severity: 'high',
-            isRead: false,
-            createdAt: new Date().toISOString()
-          };
-          notifications.unshift(alertNotif);
-          io.emit('notification_created', alertNotif);
+        const oldScore = user.trustScore;
+        const newScore = Math.max(0, user.trustScore - 10);
+        user.warningCount = (user.warningCount || 0) + 1;
+
+        if (user.warningCount >= 2 || newScore <= 30) {
+          user.isFlagged = true;
+          user.flagStatus = 'RED';
         }
+
+        await updateUserTrust(user.id, newScore, `Low similarity (${similarity}%) claim penalty (-10)`);
+
+        const fraudNotif: NotificationItem = {
+          id: `notif_${Date.now()}_fraud`,
+          type: 'RED_FLAG',
+          title: `RED FLAG: Fraud Risk Claim (${similarity}%) for ${user.name}`,
+          message: `User ${user.name} submitted claim with ${similarity}% similarity match. Warning count: ${user.warningCount}.`,
+          targetId: user.id,
+          severity: 'critical',
+          isRead: false,
+          createdAt: new Date().toISOString()
+        };
+        notifications.unshift(fraudNotif);
+        io.emit('notification_created', fraudNotif);
+
+        const custNotif: NotificationItem = {
+          id: `notif_${Date.now()}_cust`,
+          type: 'SUSPICIOUS_REFUND',
+          title: `Trust Score Penalized (-10)`,
+          message: `Your trust score dropped from ${oldScore} to ${newScore} due to a low image similarity refund claim.`,
+          targetId: user.id,
+          severity: 'high',
+          isRead: false,
+          createdAt: new Date().toISOString()
+        };
+        notifications.unshift(custNotif);
+        io.emit('notification_created', custNotif);
       }
 
       // Realtime Broadcast to Support Dashboard & Customer Laptops
@@ -603,7 +790,7 @@ async function startServer() {
   }
 
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`TrustBite AI Multi-User Full-Stack Server running on http://localhost:${PORT}`);
+    console.log(`TrustBite AI Multi-User Full-Stack Server running on http://0.0.0.0:${PORT}`);
   });
 }
 

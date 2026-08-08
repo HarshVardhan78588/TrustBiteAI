@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # TrustBite AI — Multi-User AI-Verified Delivery & Fraud Prevention Engine
 
 TrustBite AI is a real-time, multi-tenant quick-commerce application designed for live multi-laptop hackathon demonstrations and production deployment. Inspired by Blinkit & Instamart UI, TrustBite pairs rapid delivery with automated Gemini AI fraud detection, evidence dispatch verification, user trust scoring, and delivery partner compliance tracking.
@@ -91,7 +90,3 @@ git commit -m "feat(support): add live fraud telemetry, red flag controls, and d
 # Stage 5: Production Deployment Configs
 git commit -m "docs: add deployment guidelines, .env.example, and architecture documentation"
 ```
-=======
-# TrustBiteAI
-App that deals with user false claim over product and provide an analytical data to the team.
->>>>>>> 5765e2fb5eaa2e256fd7c55a0e13890d0564f8cb

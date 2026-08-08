@@ -106,43 +106,43 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onAuthS
                 >
                   <div>
                     <div className="text-[10px] uppercase font-bold text-indigo-400">Laptop 4 (Support)</div>
-                    <div>Support Dashboard</div>
+                    <div>support@trustbite.ai</div>
                   </div>
                   <ArrowRight className="w-3.5 h-3.5 text-indigo-400" />
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleQuickPresetLogin('alex@gmail.com', 'password123')}
+                  onClick={() => handleQuickPresetLogin('user1@test.com', 'password123')}
                   className="p-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/90 border border-white/10 text-xs text-left flex items-center justify-between transition-all"
                 >
                   <div>
-                    <div className="text-[10px] uppercase font-bold text-emerald-400">Laptop 1 (Customer)</div>
-                    <div>Alex (Trust: 85/100)</div>
+                    <div className="text-[10px] uppercase font-bold text-emerald-400">Laptop 1 (Customer 1)</div>
+                    <div>user1@test.com</div>
                   </div>
                   <ArrowRight className="w-3.5 h-3.5 text-white/40" />
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleQuickPresetLogin('sarah.c@gmail.com', 'password123')}
+                  onClick={() => handleQuickPresetLogin('user2@test.com', 'password123')}
                   className="p-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/90 border border-white/10 text-xs text-left flex items-center justify-between transition-all"
                 >
                   <div>
-                    <div className="text-[10px] uppercase font-bold text-emerald-400">Laptop 2 (Customer)</div>
-                    <div>Sarah (Trust: 95/100)</div>
+                    <div className="text-[10px] uppercase font-bold text-emerald-400">Laptop 2 (Customer 2)</div>
+                    <div>user2@test.com</div>
                   </div>
                   <ArrowRight className="w-3.5 h-3.5 text-white/40" />
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleQuickPresetLogin('david.k@gmail.com', 'password123')}
+                  onClick={() => handleQuickPresetLogin('user3@test.com', 'password123')}
                   className="p-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/90 border border-white/10 text-xs text-left flex items-center justify-between transition-all"
                 >
                   <div>
-                    <div className="text-[10px] uppercase font-bold text-rose-400">Laptop 3 (Risk User)</div>
-                    <div>David (Trust: 45/100)</div>
+                    <div className="text-[10px] uppercase font-bold text-amber-400">Laptop 3 (Customer 3)</div>
+                    <div>user3@test.com</div>
                   </div>
                   <ArrowRight className="w-3.5 h-3.5 text-white/40" />
                 </button>

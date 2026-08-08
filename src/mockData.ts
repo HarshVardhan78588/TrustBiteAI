@@ -2,49 +2,72 @@ import { Restaurant, Order, RefundRequest, FlashDeal, DriverApplication, User } 
 
 export const MOCK_USERS: User[] = [
   {
-    id: 'user_1',
-    name: 'Sarah Jenkins',
-    email: 'sarah.j@example.com',
+    id: 'user_cust_1',
+    name: 'User 1 (Alex)',
+    email: 'user1@test.com',
     role: 'customer',
     trustScore: 92,
     flagStatus: 'GREEN',
-    profilePicture: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-    totalOrders: 38,
-    approvedRefunds: 2,
+    isFlagged: false,
+    warningCount: 0,
+    approvedRefunds: 1,
     rejectedRefunds: 0,
-    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+    totalOrders: 12,
+    profilePicture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
     address: '452 Park Avenue, Apt 4B, New York',
     createdAt: '2026-01-15T08:00:00.000Z'
   },
   {
-    id: 'user_2',
-    name: 'Alex Vance',
-    email: 'alex.vance@example.com',
+    id: 'user_cust_2',
+    name: 'User 2 (Sarah)',
+    email: 'user2@test.com',
     role: 'customer',
-    trustScore: 42,
-    flagStatus: 'RED',
-    profilePicture: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-    totalOrders: 14,
-    approvedRefunds: 1,
-    rejectedRefunds: 4,
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+    trustScore: 74,
+    flagStatus: 'YELLOW',
+    isFlagged: false,
+    warningCount: 1,
+    approvedRefunds: 3,
+    rejectedRefunds: 1,
+    totalOrders: 8,
+    profilePicture: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
     address: '88 Broadway Street, Suite 12, New York',
     createdAt: '2026-02-01T10:30:00.000Z'
   },
   {
-    id: 'user_3',
-    name: 'Elena Rostova',
-    email: 'elena@example.com',
+    id: 'user_cust_3',
+    name: 'User 3 (David)',
+    email: 'user3@test.com',
     role: 'customer',
-    trustScore: 80,
-    flagStatus: 'GREEN',
-    profilePicture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-    totalOrders: 8,
-    approvedRefunds: 0,
-    rejectedRefunds: 0,
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    trustScore: 18,
+    flagStatus: 'RED',
+    isFlagged: true,
+    warningCount: 4,
+    approvedRefunds: 2,
+    rejectedRefunds: 7,
+    totalOrders: 15,
+    profilePicture: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
     address: '102 Greenwich Ave, New York',
     createdAt: '2026-03-10T14:20:00.000Z'
+  },
+  {
+    id: 'user_support_1',
+    name: 'TrustBite Support Team',
+    email: 'support@trustbite.ai',
+    role: 'support',
+    trustScore: 100,
+    flagStatus: 'GREEN',
+    isFlagged: false,
+    warningCount: 0,
+    approvedRefunds: 0,
+    rejectedRefunds: 0,
+    totalOrders: 0,
+    profilePicture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    address: 'TrustBite HQ, Support Desk 4',
+    createdAt: '2026-01-01T00:00:00.000Z'
   }
 ];
 
@@ -157,8 +180,8 @@ export const SAMPLE_COMPLAINT_PHOTOS = {
 export const MOCK_ORDERS: Order[] = [
   {
     id: 'TB-8921',
-    customerId: 'user_1',
-    customerName: 'Sarah Jenkins',
+    customerId: 'user_cust_1',
+    customerName: 'User 1 (Alex)',
     customerTrustScore: 92,
     restaurantId: 'rest_1',
     restaurantName: 'Artisan Pizza & Trattoria',
@@ -186,9 +209,9 @@ export const MOCK_ORDERS: Order[] = [
   },
   {
     id: 'TB-8924',
-    customerId: 'user_2',
-    customerName: 'Alex Vance',
-    customerTrustScore: 42,
+    customerId: 'user_cust_2',
+    customerName: 'User 2 (Sarah)',
+    customerTrustScore: 74,
     restaurantId: 'rest_2',
     restaurantName: 'Noodle & Spice Asian Kitchen',
     items: [
@@ -209,6 +232,32 @@ export const MOCK_ORDERS: Order[] = [
       notes: 'Verified ramen lids tightly secured with tape.'
     },
     refundRequestId: 'ref_102'
+  },
+  {
+    id: 'TB-8929',
+    customerId: 'user_cust_3',
+    customerName: 'User 3 (David)',
+    customerTrustScore: 18,
+    restaurantId: 'rest_3',
+    restaurantName: 'Green & Gold Superfood Bowls',
+    items: [
+      {
+        menuItem: MOCK_RESTAURANTS[2].menu[0],
+        quantity: 1
+      }
+    ],
+    subtotal: 21.00,
+    deliveryFee: 3.50,
+    total: 24.50,
+    status: 'delivered',
+    createdAt: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
+    dispatchEvidence: {
+      packagingPhoto: SAMPLE_DISPATCH_PHOTOS.sealedBag,
+      billPhoto: SAMPLE_DISPATCH_PHOTOS.neatReceipt,
+      timestamp: new Date(Date.now() - 105 * 60 * 1000).toISOString(),
+      notes: 'Dispatched in insulated cooler box.'
+    },
+    refundRequestId: 'ref_103'
   }
 ];
 
@@ -216,9 +265,9 @@ export const MOCK_REFUNDS: RefundRequest[] = [
   {
     id: 'ref_102',
     orderId: 'TB-8924',
-    customerId: 'user_2',
-    customerName: 'Alex Vance',
-    customerTrustScore: 42,
+    customerId: 'user_cust_2',
+    customerName: 'User 2 (Sarah)',
+    customerTrustScore: 74,
     restaurantId: 'rest_2',
     restaurantName: 'Noodle & Spice Asian Kitchen',
     reason: 'Spilled soup and damaged packaging during transit',
@@ -233,17 +282,43 @@ export const MOCK_REFUNDS: RefundRequest[] = [
       imageMatch: true,
       itemDiscrepancyDetected: false,
       receiptValid: true,
-      visualDifferenceNotes: 'Complaint photo shows liquid spill on container lid. Merchant photo shows clean sealed lid. Low user trust score (42/100) triggers fraud warning check.',
-      reasoning: 'Visual evidence indicates real spill damage, but customer has history of 4 rejected refund attempts. Automated decision overridden for manual admin verification.',
+      visualDifferenceNotes: 'Complaint photo shows liquid spill on container lid. Merchant photo shows clean sealed lid.',
+      reasoning: 'Visual evidence indicates spill damage. Requires support team review.',
       recommendedAction: 'ADMIN_REVIEW',
       evaluatedAt: new Date(Date.now() - 18 * 60 * 1000).toISOString()
     }
   },
   {
+    id: 'ref_103',
+    orderId: 'TB-8929',
+    customerId: 'user_cust_3',
+    customerName: 'User 3 (David)',
+    customerTrustScore: 18,
+    restaurantId: 'rest_3',
+    restaurantName: 'Green & Gold Superfood Bowls',
+    reason: 'Claimed missing items in bowl order',
+    complaintPhoto: SAMPLE_COMPLAINT_PHOTOS.missingItem,
+    customerNotes: 'Avocado and salmon were missing from the grain bowl.',
+    status: 'pending_admin',
+    amount: 24.50,
+    submittedAt: new Date(Date.now() - 40 * 60 * 1000).toISOString(),
+    aiAnalysis: {
+      confidenceScore: 35,
+      fraudProbability: 82,
+      imageMatch: false,
+      itemDiscrepancyDetected: true,
+      receiptValid: true,
+      visualDifferenceNotes: 'Merchant photo clearly shows complete sealed bowl. Customer trust score is 18/100 (Red Flagged).',
+      reasoning: 'Low image similarity match and flagged risk profile. Instant refund disabled.',
+      recommendedAction: 'ADMIN_REVIEW',
+      evaluatedAt: new Date(Date.now() - 38 * 60 * 1000).toISOString()
+    }
+  },
+  {
     id: 'ref_101',
-    orderId: 'TB-8919',
-    customerId: 'user_1',
-    customerName: 'Sarah Jenkins',
+    orderId: 'TB-8921',
+    customerId: 'user_cust_1',
+    customerName: 'User 1 (Alex)',
     customerTrustScore: 92,
     restaurantId: 'rest_1',
     restaurantName: 'Artisan Pizza & Trattoria',
@@ -259,7 +334,7 @@ export const MOCK_REFUNDS: RefundRequest[] = [
       imageMatch: false,
       itemDiscrepancyDetected: true,
       receiptValid: true,
-      visualDifferenceNotes: 'Complaint photo clearly shows cured meat toppings (pepperoni) whereas receipt specifies Truffle & Burrata. Customer holds VIP Trust Score (92/100).',
+      visualDifferenceNotes: 'Complaint photo clearly shows cured meat toppings (pepperoni) whereas receipt specifies Truffle & Burrata. Customer holds High Trust Score (92/100).',
       reasoning: 'High visual mismatch between item delivered and receipt line item. User trust score meets instant refund threshold (>75). Approved automatically.',
       recommendedAction: 'INSTANT_REFUND',
       evaluatedAt: new Date(Date.now() - 119 * 60 * 1000).toISOString()

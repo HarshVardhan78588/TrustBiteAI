@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Restaurant, MenuItem, Order, User, RefundRequest } from '../types';
-import { Search, Star, Clock, ShieldCheck, ShoppingBag, Sparkles, Plus, Minus, ArrowRight, Zap, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Search, Star, Clock, ShieldCheck, ShoppingBag, Sparkles, Plus, Minus, ArrowRight, Zap, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface CustomerViewProps {
@@ -45,11 +45,32 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
   const deliveryFee = cart.length > 0 ? 3.50 : 0;
   const grandTotal = cartTotal + deliveryFee;
 
-  const userOrders = orders.filter(o => o.customerId === currentUser?.id || currentUser?.role === 'customer');
+  const userOrders = orders.filter(o => currentUser ? o.customerId === currentUser.id : false);
+  const isFlaggedUser = !!(currentUser?.isFlagged || currentUser?.flagStatus === 'RED' || (currentUser?.trustScore !== undefined && currentUser.trustScore <= 30));
 
   return (
     <div className="space-y-8 pb-12">
       
+      {/* Flagged Account Red Warning Banner */}
+      {isFlaggedUser && (
+        <div className="p-4 rounded-2xl bg-rose-950/80 border-2 border-rose-500/50 text-rose-200 flex items-start gap-3 shadow-xl backdrop-blur-md">
+          <AlertTriangle className="w-6 h-6 text-rose-400 shrink-0 mt-0.5 animate-pulse" />
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-sm text-rose-300 uppercase tracking-wide">
+                Account Under Review & Restricted Refund Privileges
+              </h3>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/30 text-rose-200 border border-rose-500/50">
+                RED FLAGGED
+              </span>
+            </div>
+            <p className="text-xs text-rose-200/90 leading-relaxed">
+              Your trust score is currently <strong>{currentUser?.trustScore}/100</strong>. Instant AI-approved automated refunds are <strong>DISABLED</strong> for your account. All refund requests will require manual Support Team review and audit.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Hero Banner with Glassmorphism */}
       <section className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white p-8 sm:p-10 shadow-2xl border border-slate-800">
         <div className="relative z-10 max-w-2xl space-y-4">
@@ -82,16 +103,24 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         {/* Decorative Glass Badge */}
         <div className="hidden lg:block absolute right-8 top-1/2 -translate-y-1/2 w-80 p-5 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/30 flex items-center justify-center text-emerald-300">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+              isFlaggedUser ? 'bg-rose-500/30 text-rose-300' : currentUser?.flagStatus === 'YELLOW' ? 'bg-amber-500/30 text-amber-300' : 'bg-emerald-500/30 text-emerald-300'
+            }`}>
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
               <div className="text-xs font-bold text-white">Your Trust Level</div>
-              <div className="text-xs text-emerald-300 font-semibold">{currentUser?.trustScore || 80}/100 Score</div>
+              <div className={`text-xs font-semibold ${
+                isFlaggedUser ? 'text-rose-400 font-bold' : currentUser?.flagStatus === 'YELLOW' ? 'text-amber-400' : 'text-emerald-300'
+              }`}>
+                {currentUser?.trustScore ?? 80}/100 Score {isFlaggedUser ? '(At Risk)' : currentUser?.flagStatus === 'YELLOW' ? '(Monitored)' : '(VIP Verified)'}
+              </div>
             </div>
           </div>
           <p className="text-[11px] text-slate-300 leading-normal">
-            Verified Merchant Dispatch Evidence + Gemini Vision Agent means genuine claims get refunded in &lt;5 seconds.
+            {isFlaggedUser 
+              ? 'Instant refunds disabled due to trust score flags. All claims routed to Support Team review.'
+              : 'Verified Merchant Dispatch Evidence + Gemini Vision Agent means genuine claims get refunded in <5 seconds.'}
           </p>
         </div>
       </section>
